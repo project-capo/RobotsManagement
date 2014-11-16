@@ -11,7 +11,6 @@ public class CustomListItem extends Observable {
 	String ip;
 	ConnectionStatus connectionStatus;
 	AmberClient client;
-	Point location;
 
 	public CustomListItem(String robotName, String ip) {
 		super();
@@ -26,14 +25,6 @@ public class CustomListItem extends Observable {
 
 	public void setClient(AmberClient client) {
 		this.client = client;
-	}
-
-	public Point getLocation() {
-		return location;
-	}
-
-	public void setLocation(Point location) {
-		this.location = location;
 	}
 
 	public String getRobotName() {

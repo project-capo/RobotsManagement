@@ -103,23 +103,6 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 		this.renderFlag = false;
 		this.renderThread = new Thread(renderingLoop);
 		this.renderThread.start();
-		
-		new Thread(new Runnable() {
-
-			@Override
-			public void run() {
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				
-				for(CustomListItem item: items) {
-					(new LocationGrabberTask()).execute(item);
-				};
-			}
-			
-		}).start();
 
 		guiUpdatesHandler = new Handler() {
 
@@ -239,6 +222,15 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 			}
 		});
 
+		ImageButton cameraButton = (ImageButton) findViewById(R.id.cameraButton);
+		cameraButton.setOnClickListener(new OnClickListener() {
+
+			@Override
+			public void onClick(View v) {
+				// items.get(0).setConnectionStatus(ConnectionStatus.DISCONNECTED);
+			}
+		});
+
 		ImageButton addRobButton = (ImageButton) findViewById(R.id.addRobotButton);
 		addRobButton.setOnClickListener(new OnClickListener() {
 
@@ -292,21 +284,8 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 			}
 		});
 
-		ImageButton cameraButton = (ImageButton) findViewById(R.id.cameraButton);
 		cameraButton.setOnClickListener(new ActivateStreamTask(this, // getPackageName(),
 				getResources(), Environment.getExternalStorageDirectory()));
-		
-		ImageButton sonarButton = (ImageButton) findViewById(R.id.colliDrawButton);
-		sonarButton.setOnClickListener(new OnClickListener() {
-			
-			@Override
-			public void onClick(View v) {
-				//TODO switch to drawing hokuyo info instead of map
-				
-				(new HokuyoSensorTask()).execute(items.get(list.getSelectedItemPosition()));			
-			}
-		});
-		
 	}
 
 	private float calDistBtwFingers(MotionEvent event) {
@@ -380,14 +359,12 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 				try {
 					Paint paint = new Paint();
 					canvas = surfaceHolder.lockCanvas();
-
-					canvas.drawColor(0, PorterDuff.Mode.CLEAR);
-					canvas.drawColor(Color.TRANSPARENT,
-							PorterDuff.Mode.SCREEN);
-					JsonMapRenderer.draw(canvas, x, y, zoom);
-						
-						//TODO draw robots location
-					if(videoStream && (grabbedImage = grabber.grab()) != null) {
+					if (!videoStream) {
+						canvas.drawColor(0, PorterDuff.Mode.CLEAR);
+						canvas.drawColor(Color.TRANSPARENT,
+								PorterDuff.Mode.SCREEN);
+						JsonMapRenderer.draw(canvas, x, y, zoom);
+					} else if ((grabbedImage = grabber.grab()) != null) {
 						IplImage img = IplImage.create(grabbedImage.width(),
 								grabbedImage.height(), IPL_DEPTH_8U, 4);
 						cvCvtColor(grabbedImage, img, CV_BGR2RGBA);
