@@ -9,6 +9,7 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import com.robotsmanagement.ui.list.CustomListItem;
+import com.robotsmanagement.ui.list.Point;
 
 public class LocationGrabberTask extends
 		AsyncTask<CustomListItem, Void, Void> {
@@ -28,15 +29,20 @@ public class LocationGrabberTask extends
 		
 		try {
 			LocationCurrent lok = locationProxy.getCurrentLocation();
-			lok.waitAvailable();
+			lok.waitAvailable(3000);
 			
-			//TODO tu trzeba bedzie ustawic jakies znaczniki na mapie
-			Log.i(tag, String.format("Current location: X: %e, Y: %e, Alfa: %e, P: %e, TimeStamp: %e",
+			if(!lok.isAvailable())
+				return null;
+				
+			params[0].setLocation(new Point(lok.getX(), lok.getY()));
+			
+			Log.d(tag, String.format("Current location: X: %e, Y: %e, Alfa: %e, P: %e, TimeStamp: %e",
 					lok.getX(), lok.getY(), lok.getAngle(),
 					lok.getP(), lok.getTimeStamp()));
 		} catch (IOException e) {
 			Log.e(tag, "Error in sending a command: " + e);
 		} catch (Exception e) {
+			Log.e(tag, "Error :c");
 			e.printStackTrace();
 		} finally {
 			//TODO tu raczej niepotrzebne ale gdzies trzeba to bedzie zrobic

@@ -1,29 +1,14 @@
 package com.robotsmanagement.core;
 
-import static org.bytedeco.javacpp.opencv_core.IPL_DEPTH_8U;
-import static org.bytedeco.javacpp.opencv_imgproc.CV_BGR2RGBA;
-import static org.bytedeco.javacpp.opencv_imgproc.cvCvtColor;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Observable;
 import java.util.Observer;
 
-import org.bytedeco.javacpp.opencv_core.IplImage;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
-import android.graphics.Bitmap;
-import android.graphics.Bitmap.Config;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.Rect;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
@@ -40,45 +25,38 @@ import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.ListView;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.robotsmanagement.R;
-import com.robotsmanagement.core.stream.ActivateStreamTask;
-import com.robotsmanagement.core.stream.TaskDelegate;
+import com.robotsmanagement.core.stream.StreamRequestListener;
 import com.robotsmanagement.ui.list.ConnectionStatus;
 import com.robotsmanagement.ui.list.CustomListAdapter;
 import com.robotsmanagement.ui.list.CustomListItem;
 import com.robotsmanagement.ui.map.JsonMapRenderer;
 
-public class MainActivity extends Activity implements Observer, TaskDelegate {
+public class MainActivity extends Activity implements Observer {
 
-	private FFmpegFrameGrabber grabber;
-	private IplImage grabbedImage;
 	private SurfaceView surfaceView;
 	private SurfaceHolder surfaceHolder;
-	private Canvas canvas;
-	private Thread renderThread;
-	private boolean renderFlag;
-	private boolean videoStream;
+	private RenderThread renderThread;
+	private LocationThread locationThread;
 	private ListView list;
 	private final ArrayList<CustomListItem> items = new ArrayList<CustomListItem>();
 	private static final int NO_GESTURE = -1;
 	private static final int PINCH_ZOOM = 0;
 	private static final int DRAG_MOVE = 1;
 	private int androidGesture = NO_GESTURE;
-	private float x = 0.0f;
-	private float y = 0.0f;
 	private float startX = 0.0f;
 	private float startY = 0.0f;
-	private float zoom = 15.0f;
 	private float oldDist = 0.0f;
 	private float newDist = 0.0f;
 
 	private Handler guiUpdatesHandler;
+
+	public ArrayList<CustomListItem> getItems() {
+		return items;
+	}
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -99,40 +77,35 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 		setUpRobotsList();
 		setUpListeners();
 
-		this.videoStream = false;
-		this.renderFlag = false;
-		this.renderThread = new Thread(renderingLoop);
-		this.renderThread.start();
-
 		guiUpdatesHandler = new Handler() {
 
 			@Override
 			public void handleMessage(Message msg) {
 				// TODO: handle null pointer excep
 				Log.d("HANDLING MESSAGE", "Handling message");
-				View listElemToEdit = (View) msg.obj;
-				ProgressBar progressBar = (ProgressBar) listElemToEdit
-						.findViewById(R.id.progressBar);
-				progressBar.setVisibility(View.INVISIBLE);
-				TextView offlineStatus = (TextView) listElemToEdit
-						.findViewById(R.id.offlineTextView);
-				TextView onlineStatus = (TextView) listElemToEdit
-						.findViewById(R.id.onlineTextView);
-				ImageView offlineImage = (ImageView) listElemToEdit
-						.findViewById(R.id.offlineImgView);
-				ImageView onlineImage = (ImageView) listElemToEdit
-						.findViewById(R.id.onlineImgView);
-				if (msg.what == 0) {
-					offlineImage.setVisibility(View.VISIBLE);
-					offlineStatus.setVisibility(View.VISIBLE);
-					onlineImage.setVisibility(View.INVISIBLE);
-					onlineStatus.setVisibility(View.INVISIBLE);
-				} else if (msg.what == 1) {
-					offlineImage.setVisibility(View.INVISIBLE);
-					offlineStatus.setVisibility(View.INVISIBLE);
-					onlineImage.setVisibility(View.VISIBLE);
-					onlineStatus.setVisibility(View.VISIBLE);
-				}
+//				View listElemToEdit = (View) msg.obj;
+//				ProgressBar progressBar = (ProgressBar) listElemToEdit
+//						.findViewById(R.id.progressBar);
+//				progressBar.setVisibility(View.INVISIBLE);
+//				TextView offlineStatus = (TextView) listElemToEdit
+//						.findViewById(R.id.offlineTextView);
+//				TextView onlineStatus = (TextView) listElemToEdit
+//						.findViewById(R.id.onlineTextView);
+//				ImageView offlineImage = (ImageView) listElemToEdit
+//						.findViewById(R.id.offlineImgView);
+//				ImageView onlineImage = (ImageView) listElemToEdit
+//						.findViewById(R.id.onlineImgView);
+//				if (msg.what == 0) {
+//					offlineImage.setVisibility(View.VISIBLE);
+//					offlineStatus.setVisibility(View.VISIBLE);
+//					onlineImage.setVisibility(View.INVISIBLE);
+//					onlineStatus.setVisibility(View.INVISIBLE);
+//				} else if (msg.what == 1) {
+//					offlineImage.setVisibility(View.INVISIBLE);
+//					offlineStatus.setVisibility(View.INVISIBLE);
+//					onlineImage.setVisibility(View.VISIBLE);
+//					onlineStatus.setVisibility(View.VISIBLE);
+//				}
 			}
 
 		};
@@ -201,16 +174,18 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 				case MotionEvent.ACTION_MOVE:
 					if (androidGesture == DRAG_MOVE) {
 						Log.i("EVENT", "DRAG");
-						// Log.d("DRAG_MEASUREMENT", "(" +
-						// Double.toString(event.getX() - startX) + "," +
-						// event.getY() - startY + ")");
-						x += (event.getX() - startX) * 0.1f;
-						y += (event.getY() - startY) * 0.1f;
+						Log.i("DRAG_MEASUREMENT",
+								"(" + Float.toString(event.getX() - startX)
+										+ ","
+										+ Float.toString(event.getY() - startY)
+										+ ")");
+						renderThread.setX(renderThread.getX() + (event.getX() - startX) * 0.005f);
+						renderThread.setY(renderThread.getY() + (event.getY() - startY) * 0.005f);
 					} else if (androidGesture == PINCH_ZOOM) {
 						Log.i("EVENT", "ZOOM");
 						newDist = calDistBtwFingers(event);
 						if (newDist > 10f) {
-							zoom *= newDist / oldDist;
+							renderThread.setZoom(renderThread.getZoom() * newDist / oldDist);
 							// x = ?
 							// y = ?
 						}
@@ -219,15 +194,6 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 					break;
 				}
 				return true;
-			}
-		});
-
-		ImageButton cameraButton = (ImageButton) findViewById(R.id.cameraButton);
-		cameraButton.setOnClickListener(new OnClickListener() {
-
-			@Override
-			public void onClick(View v) {
-				// items.get(0).setConnectionStatus(ConnectionStatus.DISCONNECTED);
 			}
 		});
 
@@ -284,8 +250,22 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 			}
 		});
 
-		cameraButton.setOnClickListener(new ActivateStreamTask(this, // getPackageName(),
-				getResources(), Environment.getExternalStorageDirectory()));
+		ImageButton cameraButton = (ImageButton) findViewById(R.id.cameraButton);
+		cameraButton.setOnClickListener(new StreamRequestListener(this));
+		
+		ImageButton sonarButton = (ImageButton) findViewById(R.id.colliDrawButton);
+		sonarButton.setOnClickListener(new OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+//				if(getList().getSelectedItemPosition() == AdapterView.INVALID_POSITION)
+//						return;
+
+				// TODO switch to drawing hokuyo info instead of map
+				(new HokuyoSensorTask()).execute(getItems().get(0));//getSelectedItem());			
+			}
+		});
+		
 	}
 
 	private float calDistBtwFingers(MotionEvent event) {
@@ -327,70 +307,83 @@ public class MainActivity extends Activity implements Observer, TaskDelegate {
 
 		@Override
 		public void surfaceDestroyed(SurfaceHolder holder) {
-			// TODO Auto-generated method stub
-
+			Log.i("SurfaceHolder", "wywo³anie surfaceDestroyed()");
+			renderThread.interrupt();
+			try {
+				renderThread.join();
+			} catch (InterruptedException e) {
+				Log.w("SurfaceHolder", "Nie uda³o siê poprawnie zamkn¹æ w¹tku renderowania.");
+				e.printStackTrace();
+			}
 		}
 
 		@Override
 		public void surfaceCreated(SurfaceHolder holder) {
-			// TODO Auto-generated method stub
-			renderFlag = true;
+			Log.i("SurfaceHolder", "wywo³anie surfaceCreated()");
+			renderThread.start();
 		}
 
 		@Override
-		public void surfaceChanged(SurfaceHolder holder, int format, int width,
-				int height) {
-			// TODO Auto-generated method stub
-
+		public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+			Log.i("SurfaceHolder", "wywo³anie surfaceChanged()");
 		}
 	};
 
-	private final Runnable renderingLoop = new Runnable() {
-
-		@Override
-		public void run() {
-			boolean interrupedInternally = false;
-			// canvas.save();
-
-			while (!renderThread.isInterrupted() && !interrupedInternally) {
-				if (!renderFlag)
-					continue;
-
-				try {
-					Paint paint = new Paint();
-					canvas = surfaceHolder.lockCanvas();
-					if (!videoStream) {
-						canvas.drawColor(0, PorterDuff.Mode.CLEAR);
-						canvas.drawColor(Color.TRANSPARENT,
-								PorterDuff.Mode.SCREEN);
-						JsonMapRenderer.draw(canvas, x, y, zoom);
-					} else if ((grabbedImage = grabber.grab()) != null) {
-						IplImage img = IplImage.create(grabbedImage.width(),
-								grabbedImage.height(), IPL_DEPTH_8U, 4);
-						cvCvtColor(grabbedImage, img, CV_BGR2RGBA);
-						Bitmap bmp = Bitmap.createBitmap(img.width(),
-								img.height(), Config.ARGB_8888);
-						bmp.copyPixelsFromBuffer(img.getByteBuffer());
-						canvas.drawBitmap(
-								bmp,
-								null,
-								new Rect(0, 0, bmp.getWidth(), bmp.getHeight()),
-								paint);
-					}
-					surfaceHolder.unlockCanvasAndPost(canvas);
-				} catch (Exception e) {
-					Log.e("RENDERING", "Error drawing frame!");
-					e.printStackTrace();
-					interrupedInternally = true;
-				}
-			}
-		}
-	};
-
+	// zarz¹dzanie w¹tkami renderowania i lokalizacji:
+	
 	@Override
-	public void streamActivationResult(FFmpegFrameGrabber result) {
-		this.grabber = result;
-		this.videoStream = true;
+	protected void onPause() {
+		super.onPause();
+		
+		renderThread.interrupt();
+		try {
+			renderThread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		locationThread.interrupt();
+		try {
+			locationThread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
+	@Override
+	protected void onResume() {
+		super.onResume();
+
+		locationThread = new LocationThread(this);
+		//locationThread.start();
+		
+		renderThread = new RenderThread(this);
+	}
+
+	public CustomListItem getSelectedItem() {
+		if(getList().getSelectedItemPosition() == AdapterView.INVALID_POSITION) {
+			Log.i("getSelectedItem()", "Brak zaznaczenia!");
+			return null;
+		} else {
+			Log.i("getSelectedItem()", "Robot #" + getList().getSelectedItemPosition());
+			return getItems().get(getList().getSelectedItemPosition());
+		}
+	}
+
+	public Thread getRenderThread() {
+		return renderThread;
+	}
+
+	public Thread getLocationThread() {
+		return locationThread;
+	}
+
+	public SurfaceHolder getSurfaceHolder() {
+		return surfaceHolder;
+	}
+
+	public ListView getList() {
+		return list;
+	}
+	
 }

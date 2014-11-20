@@ -4,13 +4,21 @@ import java.util.Observable;
 
 import pl.edu.agh.amber.common.AmberClient;
 
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.util.Log;
 
 public class CustomListItem extends Observable {
-	String robotName;
-	String ip;
-	ConnectionStatus connectionStatus;
-	AmberClient client;
+	
+	private final static int DOT_SIZE = 10;
+	
+	private String robotName;
+	private String ip;
+	private ConnectionStatus connectionStatus;
+	private AmberClient client;
+	private Point location;
 
 	public CustomListItem(String robotName, String ip) {
 		super();
@@ -25,6 +33,14 @@ public class CustomListItem extends Observable {
 
 	public void setClient(AmberClient client) {
 		this.client = client;
+	}
+
+	public Point getLocation() {
+		return location;
+	}
+
+	public void setLocation(Point location) {
+		this.location = location;
 	}
 
 	public String getRobotName() {
@@ -52,6 +68,20 @@ public class CustomListItem extends Observable {
 		Log.d("ITEM UPDATE", "Set up status:  " + status.name());
 		setChanged();
 		notifyObservers(this);
+	}
+	
+	public void draw(Canvas canvas, float x, float y, float zoom) {
+		Paint paint = new Paint();
+		paint.setColor(Color.LTGRAY);
+		
+		if(location == null)
+			return;
+
+		int newX = (int) ((location.getX() - x) * zoom);
+		int newY = (int) ((location.getY() - y) * zoom);
+		
+		canvas.drawArc(new RectF(newX - DOT_SIZE, newY - DOT_SIZE, 
+				newX + DOT_SIZE, (int) newY + DOT_SIZE), 0, 360, true, paint);
 	}
 
 }

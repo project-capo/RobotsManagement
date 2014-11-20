@@ -18,8 +18,8 @@ public class HokuyoSensorTask extends
 
 	@Override
 	protected Void doInBackground(CustomListItem... params) {
-		Log.d("HOKUYO TASK",
-				"Acquiring position info from " + params[0].getIp());
+		Log.i("HOKUYO TASK",
+				"Acquiring collision info from " + params[0].getIp());
 		
 		listItem = params[0];
 		client = listItem.getClient();
@@ -27,25 +27,25 @@ public class HokuyoSensorTask extends
 		
 		try {
 			// Synchronous receiving
-			Scan singleScan = hokuyoProxy.getSingleScan();
-			System.err.println(singleScan.getPoints());
-			System.out.println("Now registering cyclic data listener...");
-			Thread.sleep(1000);
+//			Scan singleScan = hokuyoProxy.getSingleScan();
+//			Log.i("HOKUYO TASK", singleScan.getPoints().toString());
+//			Log.i("HOKUYO TASK", "Now registering cyclic data listener...");
+//			Thread.sleep(1000);
 			// Asynchronous receiving (with listener)
 			hokuyoProxy.registerMultiScanListener(new CyclicDataListener<Scan>() {
 				@Override
 				public void handle(Scan data) {
 					try {
-						System.out.println(data.getPoints());
+						Log.i("HOKUYO TASK", data.getPoints().toString());
 					} catch (Exception e) {
-						System.err.println("Exception occurred: " + e);
+						Log.e("HOKUYO TASK", "Exception occurred: " + e);
 					}
 				}
 			});
 		} catch (IOException e) {
-			System.out.println("Error in sending a command: " + e);
-		} catch (InterruptedException e) {
-			System.out.println("Interrupted");
+			Log.e("HOKUYO TASK", "Error in sending a command: " + e);
+//		} catch (InterruptedException e) {
+//			Log.e("HOKUYO TASK", "Interrupted");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
